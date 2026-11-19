@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rota Verde</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<section id="login" class="gut">
+  <div class="login">
+    <div class="mark">
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h11V7H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></div>
+      <h1>Rota Verde</h1>
+    </div>
+    <p class="lead">Venda seu material reciclável para cooperativas perto de você. A coleta passa na sua porta quando a rota fecha a carga mínima do caminhão, e o pagamento cai na sua carteira depois da pesagem.</p>
+    <div class="roles" id="roles"></div>
+    <p class="foot">Protótipo navegável com dados de exemplo. As ações de um perfil aparecem nos outros: agende como cliente, aprove como cooperativa, pese como motorista e veja o crédito na carteira do cliente.</p>
+  </div>
+</section>
+
+<div id="app" hidden>
+  <header class="top gut">
+    <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h11V7H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></div>
+    <span class="name">Rota Verde</span>
+    <span class="sp"></span>
+    <div class="who" id="who"></div>
+    <button class="ghost" id="sair" type="button">Trocar perfil</button>
+  </header>
+  <nav class="side" id="side" aria-label="Menu"></nav>
+  <main class="gut" id="main"></main>
+  <nav class="tabbar" id="tabbar" aria-label="Menu"></nav>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="modal"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
