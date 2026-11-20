@@ -76,7 +76,8 @@ const DB = {
       valorFinal:38.20, avaliacao:0, historico:["Solicitada", "Aprovada", "Em rota", "Recebida", "Pesagem confirmada", "Concluída"] }
   ],
   rotas: [
-    { id:199, empresa:"e1", data:"Hoje", janela:"8h às 12h", veiculo:"v1", coletor:"col1", status:"programada", liberacaoExcepcional:false, solicitacoes:[1042,1043] }
+    { id:199, empresa:"e1", data:"Hoje", janela:"8h às 12h", veiculo:"v1", coletor:"col1", status:"programada", liberacaoExcepcional:false, solicitacoes:[1042,1043] },
+    { id:180, empresa:"e1", data:"07/11/2026", janela:"8h às 12h", veiculo:"v1", coletor:"col1", status:"concluída", concluidaEm:"07/11/2026", liberacaoExcepcional:false, solicitacoes:[981] }
   ],
   movimentacoesCliente: [
     { data:"07/11/2026", descricao:"Crédito da coleta #981", valor:38.20, status:"disponível" }
@@ -99,7 +100,7 @@ const STATUS = {
   cancelada: "Cancelada", interrompida: "Interrompida"
 };
 const TERMINAIS = ["concluida", "recusada", "cancelada", "interrompida"];
-const CANCELAVEIS = ["solicitada", "aprovada", "em_rota"];
+const CANCELAVEIS = ["solicitada", "aprovada"];
 
 function empresa(id){ return DB.empresas.find(x => x.id === id); }
 function solicitacao(id){ return DB.solicitacoes.find(x => x.id === Number(id)); }
@@ -142,7 +143,8 @@ const ICONES = {
   tag:'<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>',
   check:'<path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
-  cart:'<path d="M3 4h2l2.5 11h11L21 7H6.2"/><circle cx="9" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>'
+  cart:'<path d="M3 4h2l2.5 11h11L21 7H6.2"/><circle cx="9" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>',
+  bell:'<path d="M18 8a6 6 0 0 0-12 0c0 6.5-3 7-3 9h18c0-2-3-2.5-3-9"/><path d="M10 21h4"/><path d="M5 17h14"/>'
 };
 const icone = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>`;
 
@@ -160,6 +162,7 @@ function badge(p){
   if(p === "solicitacoes") return DB.solicitacoes.filter(s => s.empresa === "e1" && s.status === "solicitada").length;
   if(p === "contestacoes") return DB.contestacoes.filter(c => c.status === "aberta").length;
   if(p === "validar") return DB.empresas.filter(e => e.status === "pendente").length;
+  if(p === "notificacoes") return (DB.notificacoes||[]).filter(n=>n.perfil===DB.perfil&&!n.lida).length;
   return 0;
 }
 function renderNavegacao(){
@@ -211,9 +214,8 @@ const TELAS = {
         <div class="f"><label for="sol-janela">Janela de disponibilidade</label><select id="sol-janela"><option>8h às 12h</option><option>13h às 17h</option></select></div></div>
         <label class="s"><input type="checkbox" id="sol-alt"> Coletar em outro endereço</label>
         <div class="f" id="sol-alt-box" hidden><label for="sol-endereco">Endereço alternativo</label><input id="sol-endereco" placeholder="Rua, número, bairro e cidade"></div>
-        <label class="s"><input type="checkbox" id="sol-cond"> Li e confirmo as condições de aceite: <span id="sol-cond-texto"></span></label>
         <div class="est"><span>Peso e valor estimados<br><span class="s" id="sol-peso"></span></span><b class="num" id="sol-valor"></b></div>
-        <div class="acts"><button class="btn" data-act="enviar-solicitacao">Enviar solicitação</button></div>
+        <div class="acts"><button class="btn" data-act="revisar-solicitacao">Revisar e confirmar</button></div>
       </div></div>`;
   },
 
@@ -299,7 +301,7 @@ function iniciarTela(pagina){
   const desenhar=()=>{
     const e=empresa($("#sol-empresa").value);
     $("#sol-materiais").innerHTML=Object.entries(e.precos).map(([m,p])=>`<div class="mrow"><div>${tagMaterial(m)}</div><span class="s num">${brl(p)}/kg</span><input id="peso-${m}" type="number" min="0" step="0.1" value="0" aria-label="Peso estimado de ${MATERIAL[m].nome}"></div>`).join("");
-    $("#sol-cond-texto").textContent=e.condicoes; atualizarEstimativa();
+    const j=$("#sol-janela");if(j)j.innerHTML=janelasDisponiveis(e).map(x=>`<option>${x}</option>`).join("");atualizarEstimativa();
   };
   const atualizarEstimativa=()=>{
     const e=empresa($("#sol-empresa").value); let peso=0,valor=0;
@@ -358,7 +360,7 @@ function abrirResultado(s){
     {id:1048,cliente:"Condominio Horizonte",empresa:"e1",endereco:"Av. Horizonte, 88 - Belo Horizonte/MG",data:"Hoje",janela:"13h às 17h",status:"pendente_rota",rota:199,recebido:false,motivoPendente:"Portaria sem autorização",itens:[{material:"vidro",estimado:65,precoConfirmado:.15}],avaliacao:0,historico:["Solicitada","Aprovada","Incluída na rota R-199","Parada pendente: portaria sem autorização"]}
   );
   DB.rotas[0].solicitacoes.push(1048);
-  STATUS.pendente_rota="Parada pendente";
+  STATUS.pendente_rota="Aguardando liberação";
   STATUS.agendada="Agendada";
 
   function mediaEmpresa(id){ const a=DB.avaliacoes.filter(x=>x.empresa===id); return a.length?a.reduce((s,x)=>s+x.nota,0)/a.length:0; }
@@ -377,9 +379,11 @@ function abrirResultado(s){
   };
   function iniciarSimulador(){ clearInterval(simuladorNotificacoes); let i=0; simuladorNotificacoes=setInterval(()=>{ if(!DB.perfil)return; const xs=eventosSimulados[DB.perfil]; notificar(DB.perfil,xs[i++%xs.length]); },12000); setTimeout(()=>DB.perfil&&notificar(DB.perfil,eventosSimulados[DB.perfil][0]),2500); }
 
-  PERFIS.cliente.paginas.push(["historico-cliente","list","Meu histórico"]);
-  PERFIS.representante.paginas.push(["empresa-config","check","Perfil da empresa"],["relatorios","list","Operações"]);
-  PERFIS.admin.paginas.push(["empresas-admin","check","Empresas"]);
+  PERFIS.cliente.paginas.push(["historico-cliente","list","Meu histórico"],["notificacoes","bell","Notificações"]);
+  PERFIS.representante.paginas.splice(2,0,["paradas","truck","Paradas Pendentes"]);
+  PERFIS.representante.paginas.push(["empresa-config","check","Perfil da empresa"],["relatorios","list","Operações"],["notificacoes","bell","Notificações"]);
+  PERFIS.coletor.paginas.push(["historico-rotas","list","Histórico de rotas"],["notificacoes","bell","Notificações"]);
+  PERFIS.admin.paginas.push(["empresas-admin","check","Empresas"],["notificacoes","bell","Notificações"]);
 
   const telasOriginais={...TELAS};
   TELAS.buscar=function(){
@@ -395,9 +399,73 @@ function abrirResultado(s){
   TELAS.validar=function(){ const lista=DB.empresas.filter(e=>["pendente","correcao"].includes(e.status)); return cabecalho("Validar empresas","Aprovar, rejeitar ou solicitar correção de dados e documentos")+`<div class="panel">${lista.map(e=>`<div class="row"><div class="grow"><div class="t">${e.nome}</div><div class="s">${e.endereco}</div>${(e.documentosDetalhes||[]).map(d=>`<span class="pill mute">${d.nome}: ${d.status}</span>`).join(" ")}</div><div class="acts"><button class="btn sec sm" data-act="corrigir-empresa" data-id="${e.id}">Solicitar correção</button><button class="btn bad sm" data-act="rejeitar-empresa" data-id="${e.id}">Rejeitar</button><button class="btn sm" data-act="aprovar-empresa" data-id="${e.id}">Aprovar</button></div></div>`).join("")||'<div class="empty">Nenhuma empresa aguardando validação.</div>'}</div>`+painelNotificacoes(); };
   TELAS["empresas-admin"]=function(){ return cabecalho("Gestão de empresas","Consultar, aprovar, rejeitar, suspender e reativar")+`<div class="panel">${DB.empresas.map(e=>`<div class="row"><div class="grow"><div class="t">${e.nome}</div><div class="s">${e.status} · ${e.endereco}</div></div><div class="acts">${e.status==='ativa'?`<button class="btn bad sm" data-act="suspender-empresa" data-id="${e.id}">Suspender</button>`:`<button class="btn sm" data-act="reativar-empresa" data-id="${e.id}">Reativar</button>`}</div></div>`).join("")}</div>`; };
   TELAS.catalogo=function(){ return cabecalho("Catálogo geral","Manutenção das categorias de recicláveis",`<button class="btn" data-act="nova-categoria">Nova categoria</button>`)+`<div class="panel">${Object.entries(MATERIAL).map(([id,m])=>`<div class="row"><div class="t">${m.nome}</div><div class="acts"><span class="pill good">Ativo</span><button class="btn sec sm" data-act="editar-categoria" data-id="${id}">Editar</button></div></div>`).join("")}</div>`; };
-  TELAS["historico-cliente"]=function(){ const ss=DB.solicitacoes.filter(s=>s.cliente===CLIENTE.nome); return cabecalho("Meu histórico","Solicitações, coletas, transações, contestações e avaliações")+`<div class="kpis"><div class="kpi"><b>${ss.length}</b><span>solicitações</span></div><div class="kpi"><b>${DB.transacoes.filter(t=>t.cliente===CLIENTE.nome).length}</b><span>transações</span></div><div class="kpi"><b>${DB.contestacoes.length}</b><span>contestações</span></div></div><div class="panel"><h3>Histórico de estados</h3>${ss.map(s=>`<div class="row"><div class="grow"><div class="t">Solicitação #${s.id} · ${empresa(s.empresa).nome}</div><div class="s">${(s.historico||[]).join(" → ")}</div></div>${pill(s.status)}</div>`).join("")}</div>`+painelNotificacoes(); };
+  TELAS["historico-cliente"]=function(){
+    const ss=DB.solicitacoes.filter(s=>s.cliente===CLIENTE.nome&&TERMINAIS.includes(s.status));
+    return cabecalho("Meu histórico","Solicitações concluídas, recusadas, canceladas ou interrompidas")+`<div class="kpis"><div class="kpi"><b>${ss.length}</b><span>solicitações encerradas</span></div><div class="kpi"><b>${DB.transacoes.filter(t=>t.cliente===CLIENTE.nome).length}</b><span>transações</span></div><div class="kpi"><b>${DB.contestacoes.length}</b><span>contestações</span></div></div><div class="panel"><h3>Histórico de estados</h3>${ss.map(s=>`<div class="row"><div class="grow"><div class="t">Solicitação #${s.id} · ${empresa(s.empresa).nome}</div><div class="s">${(s.historico||[]).join(" → ")}</div></div><div class="acts">${pill(s.status)}<button class="btn sec sm" data-act="ver-solicitacao" data-id="${s.id}">Abrir</button>${s.status==="concluida"?`<button class="btn sm" data-act="avaliar" data-id="${s.id}" ${s.avaliacao?"disabled":""}>${s.avaliacao?`Avaliada: ${s.avaliacao}/5`:"Avaliar coleta"}</button>`:""}</div></div>`).join("")||'<div class="empty">Nenhum item no histórico.</div>'}</div>`;
+  };
   TELAS["relatorios"]=function(){ const ss=DB.solicitacoes.filter(s=>s.empresa==="e1"); return cabecalho("Operações da empresa","Participantes, materiais, pesos, preços, valores, datas e estados")+`<div class="panel">${ss.map(s=>`<div class="row"><div class="grow"><div class="t">#${s.id} · ${s.cliente}</div><div class="s">${s.data} · ${s.janela} · ${s.endereco}</div><div class="mats">${s.itens.map(i=>tagMaterial(i.material,` <span class="num muted">${kg(i.aceito??i.estimado)} · ${brl(i.precoConfirmado||empresa(s.empresa).precos[i.material]||0)}/kg</span>`)).join("")}</div><div class="s">${(s.historico||[]).join(" → ")}</div></div>${s.status==='pendente_rota'?`<button class="btn" data-act="liberar-parada" data-id="${s.id}">Liberar parada</button>`:pill(s.status)}</div>`).join("")}</div>`+painelNotificacoes(); };
   TELAS.financeiro=function(){ const e=empresa("e1"); return cabecalho("Financeiro e transações","Registro detalhado das operações e repasses",`<button class="btn" data-act="reservar-saldo">Reservar saldo</button>`)+`<div class="kpis"><div class="kpi"><b>${brl(e.saldoReservado)}</b><span>saldo reservado</span></div><div class="kpi"><b>${DB.transacoes.length}</b><span>transações</span></div></div><div class="panel">${DB.transacoes.map(t=>`<div class="row"><div class="grow"><div class="t">${t.id} · ${t.cliente} → ${empresa(t.empresa).nome}</div><div class="s">Solicitação #${t.solicitacao} · ${t.data} · ${t.status}</div><div class="s">${t.materiais.map((m,i)=>`${MATERIAL[m].nome}: ${kg(t.pesos[i])} × ${brl(t.precos[i])}`).join(" · ")}</div></div><b>${brl(t.valor)}</b></div>`).join("")}</div>`; };
+
+
+
+  function horarioAbertura(e){
+    const m=String(e.horario||"").match(/(\d{1,2})h\s*(?:às|a|-)\s*(\d{1,2})h/i);
+    return m?[Number(m[1]),Number(m[2])]:[8,17];
+  }
+  function janelasDisponiveis(e){
+    const [ini,fim]=horarioAbertura(e),xs=[];
+    for(let h=ini;h+2<=fim;h+=2)xs.push(`${h}h às ${h+2}h`);
+    return xs;
+  }
+  function detalhesSolicitacao(s){
+    return `<h3>Solicitação #${s.id}</h3><p class="s">${empresa(s.empresa).nome}<br>${esc(s.endereco)}<br>${s.data} · ${s.janela}</p><div class="panel">${s.itens.map(i=>`<div class="row"><div>${tagMaterial(i.material)}</div><b>${kg(i.aceito??i.real??i.estimado)}</b></div>`).join("")}</div><p class="s">${(s.historico||[]).map(esc).join(" → ")}</p><div class="acts"><button class="btn" data-act="fechar">Fechar</button></div>`;
+  }
+  TELAS.minhas=function(){
+    const lista=DB.solicitacoes.filter(s=>s.cliente===CLIENTE.nome&&!TERMINAIS.includes(s.status)).sort((a,b)=>b.id-a.id);
+    return cabecalho("Minhas coletas",CLIENTE.enderecoPrincipal,`<button class="btn" data-act="ir" data-page="solicitar">Solicitar coleta</button>`)+`<div class="panel">${lista.map(s=>{const pode=CANCELAVEIS.includes(s.status)&&!s.recebido&&!s.rota;return `<div class="row"><div class="grow"><div class="t">Solicitação #${s.id} · ${empresa(s.empresa).nome}</div><div class="s">${s.data} · ${s.janela}<br>${esc(s.endereco)}</div><div class="mats">${s.itens.map(i=>tagMaterial(i.material,` <span class="num muted">${kg(i.aceito??i.estimado)}</span>`)).join("")}</div></div><div class="acts">${pill(s.status)}<button class="btn sec sm" data-act="ver-solicitacao" data-id="${s.id}">Abrir</button>${s.status==="aguardando_confirmacao"?`<button class="btn sm" data-act="ver-pesagem" data-id="${s.id}">Revisar pesagem</button>`:""}${pode?`<button class="btn bad sm" data-act="cancelar" data-id="${s.id}">Cancelar</button>`:""}</div></div>`}).join("")||'<div class="empty">Nenhuma coleta em andamento.</div>'}</div>`;
+  };
+  TELAS.solicitar=function(){
+    const ativas=DB.empresas.filter(e=>e.status==="ativa"),selecionada=DB.empresaPreselecionada||ativas[0].id;
+    return cabecalho("Solicitar coleta","Selecione materiais, endereço e uma janela de 2 horas")+`<div class="panel"><div class="bd" style="display:grid;gap:16px"><div class="f"><label for="sol-empresa">Empresa</label><select id="sol-empresa">${ativas.map(e=>`<option value="${e.id}" ${e.id===selecionada?'selected':''}>${e.nome} · ${e.distancia.toLocaleString("pt-BR")} km</option>`).join("")}</select></div><div><div class="f"><label>Materiais e peso estimado</label></div><div id="sol-materiais"></div></div><div class="grid2"><div class="f"><label for="sol-data">Atendimento</label><select id="sol-data"><option value="Hoje">Mesmo dia</option><option value="20/11/2026">20/11/2026</option><option value="21/11/2026">21/11/2026</option></select></div><div class="f"><label for="sol-janela">Janela de disponibilidade</label><select id="sol-janela"></select></div></div><label class="s"><input type="checkbox" id="sol-alt"> Coletar em outro endereço</label><div class="f" id="sol-alt-box" hidden><label for="sol-endereco">Endereço alternativo</label><input id="sol-endereco" placeholder="Rua, número, bairro e cidade"></div><div class="est"><span>Peso e valor estimados<br><span class="s" id="sol-peso"></span></span><b class="num" id="sol-valor"></b></div><div class="acts"><button class="btn" data-act="revisar-solicitacao">Revisar e confirmar</button></div></div></div>`;
+  };
+  TELAS.rotas=function(){
+    const aprovadas=DB.solicitacoes.filter(s=>s.empresa==="e1"&&s.status==="aprovada"&&!s.rota),grupos=aprovadas.reduce((g,s)=>((g[`${s.data}|${s.janela}`]??=[]).push(s),g),{}),e=empresa("e1");
+    const blocos=Object.entries(grupos).map(([chave,lista])=>{const [data,janela]=chave.split("|"),total=lista.reduce((a,s)=>a+somaEstimada(s),0);return `<div class="panel"><h3>${data} · ${janela}</h3><div class="bd"><p class="s">Selecione as solicitações que entrarão na rota · ${kg(total)} de ${kg(e.quantidadeMinima)} mínimos</p>${lista.map(s=>`<label class="row" style="cursor:pointer"><input class="rota-sel" type="checkbox" value="${s.id}" checked><span class="grow"><b>${s.cliente}</b><span class="s" style="display:block">${esc(s.endereco)} · ${kg(somaEstimada(s))}</span></span></label>`).join("")}<div class="grid2"><select class="rota-veiculo">${DB.veiculos.filter(v=>v.empresa==="e1"&&v.ativo).map(v=>`<option value="${v.id}">${v.placa} · ${kg(v.capacidade)}</option>`).join("")}</select><select class="rota-coletor">${DB.coletores.filter(c=>c.empresa==="e1"&&c.ativo).map(c=>`<option value="${c.id}">${c.nome}</option>`).join("")}</select></div><div class="acts"><button class="btn" data-act="criar-rota" data-data="${data}" data-janela="${janela}">Criar rota</button></div></div></div>`}).join("")||'<div class="panel"><div class="empty">Nenhuma solicitação aprovada aguardando rota.</div></div>';
+    const cards=rs=>rs.map(r=>`<div class="row"><div class="grow"><div class="t">R-${r.id} · ${r.data} · ${r.janela}</div><div class="s">${r.solicitacoes.length} paradas · ${DB.coletores.find(c=>c.id===r.coletor)?.nome}</div>${r.solicitacoes.map(id=>{const x=solicitacao(id);return x?`<div class="s">#${x.id} · ${x.cliente} · ${esc(x.endereco)}</div>`:""}).join("")}</div><span class="pill">${r.status}</span></div>`).join("")||'<div class="empty">Nenhuma rota.</div>';
+    const hojeR=DB.rotas.filter(r=>r.data==="Hoje"&&r.status!=="concluída"),ag=DB.rotas.filter(r=>r.data!=="Hoje"&&r.status!=="concluída");
+    return cabecalho("Rotas","Solicitações selecionáveis, endereços e rotas separadas por data")+`<div class="cols">${blocos}</div><div class="panel"><h3>Rotas de hoje</h3>${cards(hojeR)}</div><div class="panel"><h3>Rotas agendadas</h3>${cards(ag)}</div>`;
+  };
+  TELAS.paradas=function(){
+    const xs=DB.solicitacoes.filter(s=>s.empresa==="e1"&&s.status==="pendente_rota");
+    return cabecalho("Paradas Pendentes","Ocorrências separadas das rotas ativas")+`<div class="panel">${xs.map(s=>`<div class="row"><div class="grow"><div class="t">#${s.id} · ${s.cliente}</div><div class="s">${esc(s.endereco)} · ${esc(s.motivoPendente||"")}</div></div><button class="btn" data-act="liberar-parada" data-id="${s.id}">Liberar parada</button></div>`).join("")||'<div class="empty">Nenhuma parada pendente.</div>'}</div>`;
+  };
+  TELAS["historico-rotas"]=function(){
+    const concluidas=DB.rotas.filter(r=>r.coletor==="col1"&&["concluída","concluida"].includes(r.status)).sort((a,b)=>b.id-a.id);
+    return cabecalho("Histórico de rotas","Rotas concluídas pelo coletor autenticado")+`<div class="panel">${concluidas.map(r=>{const paradas=r.solicitacoes.map(solicitacao).filter(Boolean),peso=paradas.reduce((t,s)=>t+s.itens.reduce((a,i)=>a+Number(i.aceito??i.real??i.estimado??0),0),0);return `<div class="row"><div class="grow"><div class="t">R-${r.id} · ${r.data} · ${r.janela}</div><div class="s">${paradas.length} paradas · ${kg(peso)} coletados · ${DB.veiculos.find(v=>v.id===r.veiculo)?.placa||"Veículo não informado"}</div></div><button class="btn sec sm" data-act="abrir-rota-historico" data-id="${r.id}">Abrir</button></div>`}).join("")||'<div class="empty">Nenhuma rota concluída.</div>'}</div>`;
+  };
+  function modalRotaHistorico(r){const paradas=r.solicitacoes.map(solicitacao).filter(Boolean);modal(`<h3>Rota concluída R-${r.id}</h3><p class="s">${r.data} · ${r.janela} · ${DB.veiculos.find(v=>v.id===r.veiculo)?.placa||"Veículo não informado"}</p>${paradas.map((s,i)=>`<div class="row"><span class="pill good">${i+1}</span><div class="grow"><div class="t">${s.cliente}</div><div class="s">${esc(s.endereco)}</div><div class="mats">${s.itens.map(x=>tagMaterial(x.material,` <span class="muted">${kg(x.aceito??x.real??x.estimado)}</span>`)).join("")}</div></div>${pill(s.status)}</div>`).join("")}<div class="acts"><button class="btn" data-act="fechar">Fechar</button></div>`);}
+  function condicoesMaterial(e,m){
+    const c=e.condicoesPorMaterial?.[m];
+    if(!c) return e.condicoes||"Material conforme as condições gerais da empresa.";
+    return [c.limpeza,c.separacao,c.acondicionamento,c.qualidade].filter(Boolean).join("; ");
+  }
+  TELAS.notificacoes=function(){
+    const ns=notificacoesPerfil(), naoLidas=ns.filter(n=>!n.lida).length;
+    return cabecalho("Notificações",`${naoLidas} não lida(s)`, naoLidas?`<button class="btn sec" data-act="marcar-todas-lidas">Marcar todas como lidas</button>`:"")+
+      `<div class="panel">${ns.map(n=>`<div class="row"><div class="grow"><div class="t">${esc(n.texto)}</div><div class="s">${n.data}</div></div>${n.lida?'<span class="pill mute">Lida</span>':`<button class="btn sec sm" data-act="marcar-lida" data-id="${n.id}">Marcar como lida</button>`}</div>`).join("")||'<div class="empty">Nenhuma notificação.</div>'}</div>`;
+  };
+  TELAS.rota=function(){
+    const rotas=DB.rotas.filter(r=>r.coletor==="col1"&&["programada","em andamento"].includes(r.status));
+    const naoIniciadas=rotas.filter(r=>r.status==="programada"), iniciadas=rotas.filter(r=>r.status==="em andamento");
+    const listar=(lista,vazio)=>lista.map(r=>`<div class="row"><div class="grow"><div class="t">R-${r.id} · ${r.data} · ${r.janela}</div><div class="s">${r.solicitacoes.length} paradas · ${r.status}</div></div><button class="btn" data-act="abrir-rota-coletor" data-id="${r.id}">Abrir rota</button></div>`).join("")||`<div class="empty">${vazio}</div>`;
+    return cabecalho("Minha rota","Rotas atribuídas separadas por situação")+`<div class="panel"><h3>Rotas não iniciadas</h3>${listar(naoIniciadas,"Nenhuma rota aguardando início.")}</div><div class="panel"><h3>Rotas em andamento</h3>${listar(iniciadas,"Nenhuma rota iniciada.")}</div>`;
+  };
+  function modalRotaColetor(r){
+    const iniciada=r.status==="em andamento", paradas=r.solicitacoes.map(solicitacao);
+    modal(`<h3>Rota R-${r.id}</h3><p class="s">${r.data} · ${r.janela} · ${iniciada?'Em andamento':'Aguardando início'}</p>
+      ${paradas.map((s,i)=>`<div class="row"><span class="pill">${i+1}</span><div class="grow"><div class="t">${s.cliente}</div><div class="s">${esc(s.endereco)}</div><div class="mats">${s.itens.map(x=>tagMaterial(x.material,` <span class="muted">${kg(x.estimado)}</span>`)).join("")}</div></div>${iniciada&&s.status==="em_rota"?`<div class="acts"><button class="btn sec sm" data-act="marcar-pendente" data-id="${s.id}">Não efetuado</button><button class="btn sm" data-act="receber" data-id="${s.id}">${s.recebido?'Registrar pesagem':'Confirmar recebimento'}</button></div>`:pill(s.status)}</div>`).join("")}
+      <div class="acts"><button class="btn sec" data-act="fechar">Fechar</button>${iniciada?`<button class="btn" data-act="concluir-rota" data-id="${r.id}">Concluir rota</button>`:`<button class="btn" data-act="iniciar-rota" data-id="${r.id}">Iniciar rota</button>`}</div>`);
+  }
 
 $("#roles").innerHTML=Object.entries(PERFIS).map(([id,p])=>`<button class="role" type="button" data-act="entrar" data-role="${id}"><strong>${p.nome}</strong><span>${p.descricao}</span></button>`).join("");
 
@@ -410,38 +478,47 @@ document.addEventListener("click", e=>{
     case "ir": ir(b.dataset.page); break;
     case "fechar": fecharModal(); break;
     case "filtrar": DB.filtro=b.dataset.m; rerender(); break;
+    case "marcar-lida": {const n=DB.notificacoes.find(x=>x.id===id&&x.perfil===DB.perfil);if(n)n.lida=true;renderNavegacao();rerender();break;}
+    case "marcar-todas-lidas": DB.notificacoes.filter(n=>n.perfil===DB.perfil).forEach(n=>n.lida=true);renderNavegacao();rerender();break;
+    case "abrir-rota-coletor": modalRotaColetor(rota(id)); break;
+    case "abrir-rota-historico": modalRotaHistorico(rota(id)); break;
+    case "ver-solicitacao": modal(detalhesSolicitacao(solicitacao(id))); break;
+    case "revisar-solicitacao": {
+      const epr=empresa($("#sol-empresa").value), itens=Object.keys(epr.precos).map(m=>({material:m,estimado:Math.max(0,Number($(`#peso-${m}`).value||0))})).filter(i=>i.estimado>0);
+      if(!itens.length)return toast("Selecione ao menos um material e informe o peso.");
+      const alternativo=$("#sol-alt").checked,endereco=alternativo?$("#sol-endereco").value.trim():CLIENTE.enderecoPrincipal;if(!endereco)return toast("Informe o endereço alternativo.");
+      DB.rascunhoSolicitacao={empresa:epr.id,itens,endereco,enderecoAlternativo:alternativo,data:$("#sol-data").value,janela:$("#sol-janela").value};
+      modal(`<h3>Revisar materiais e condições</h3><p class="s">Confira as exigências da empresa para cada material.</p>${itens.map(i=>`<div class="row"><div class="grow"><div class="t">${MATERIAL[i.material].nome} · ${kg(i.estimado)}</div><div class="s">${esc(condicoesMaterial(epr,i.material))}</div></div></div>`).join("")}<div class="est"><span>Coleta</span><b>${$("#sol-data").value} · ${$("#sol-janela").value}</b></div><p class="s">Ao confirmar, a solicitação será enviada para análise do representante.</p><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="enviar-solicitacao">Confirmar solicitação</button></div>`);break;
+    }
     case "solicitar-em": DB.empresaPreselecionada=id; ir("solicitar"); break;
     case "enviar-solicitacao": {
-      const epr=empresa($("#sol-empresa").value), itens=Object.keys(epr.precos).map(m=>({material:m,estimado:Math.max(0,Number($(`#peso-${m}`).value||0))})).filter(i=>i.estimado>0);
-      if(!itens.length) return toast("Selecione ao menos um material e informe o peso.");
-      if(!$("#sol-cond").checked) return toast("Confirme as condições de aceite.");
-      const alternativo=$("#sol-alt").checked, endereco=alternativo?$("#sol-endereco").value.trim():CLIENTE.enderecoPrincipal;
-      if(!endereco) return toast("Informe o endereço alternativo.");
-      const s={id:++DB.sequenciaSolicitacao,cliente:CLIENTE.nome,empresa:epr.id,endereco,enderecoAlternativo:alternativo,data:$("#sol-data").value,janela:$("#sol-janela").value,status:"solicitada",rota:null,recebido:false,itens,avaliacao:0,historico:[`${hoje()} · Solicitação enviada`]};
-      DB.solicitacoes.push(s); DB.empresaPreselecionada=null; registrarAuditoria(`Solicitação #${s.id} criada`); toast("Solicitação enviada."); ir("minhas"); break;
+      const d=DB.rascunhoSolicitacao;
+      if(!d||!d.itens?.length)return toast("Revise os materiais antes de confirmar a solicitação.");
+      const nova={id:++DB.sequenciaSolicitacao,cliente:CLIENTE.nome,empresa:d.empresa,endereco:d.endereco,enderecoAlternativo:d.enderecoAlternativo,data:d.data,janela:d.janela,status:"solicitada",rota:null,recebido:false,itens:d.itens.map(i=>({...i})),avaliacao:0,historico:[`${hoje()} · Solicitação enviada`]};
+      fecharModal();DB.solicitacoes.push(nova);DB.rascunhoSolicitacao=null;DB.empresaPreselecionada=null;notificar("representante",`Nova solicitação #${nova.id} aguardando análise.`);registrarAuditoria(`Solicitação #${nova.id} criada`);toast("Solicitação enviada.");ir("minhas");break;
     }
     case "aprovar": {
       const s=solicitacao(id), emp=empresa(s.empresa); s.itens.forEach(i=>i.precoConfirmado=emp.precos[i.material]); s.status="aprovada"; registrarHistorico(s,"Aprovada; preços vigentes fixados"); registrarAuditoria(`Solicitação #${s.id} aprovada`); toast("Solicitação aprovada e aguardando rota."); rerender(); break;
     }
     case "recusar": modal(`<h3>Recusar solicitação #${id}</h3><div class="f"><label for="motivo">Motivo obrigatório</label><input id="motivo"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn bad" data-act="confirmar-recusa" data-id="${id}">Recusar</button></div>`); break;
     case "confirmar-recusa": {const motivo=$("#motivo").value.trim();if(!motivo)return toast("Informe o motivo.");const s=solicitacao(id);s.status="recusada";s.motivoRecusa=motivo;registrarHistorico(s,`Recusada: ${motivo}`);registrarAuditoria(`Solicitação #${s.id} recusada`);fecharModal();toast("Solicitação recusada.");rerender();break;}
-    case "cancelar": {const s=solicitacao(id);if(s.recebido||!CANCELAVEIS.includes(s.status))return toast("Cancelamento não permitido neste estado.");modal(`<h3>Cancelar solicitação #${s.id}?</h3><p class="s">O cancelamento é permitido até antes da confirmação do recebimento.</p><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn bad" data-act="confirmar-cancelamento" data-id="${s.id}">Cancelar</button></div>`);break;}
+    case "cancelar": {const s=solicitacao(id);if(s.recebido||!CANCELAVEIS.includes(s.status))return toast("Cancelamento não permitido neste estado.");modal(`<h3>Cancelar solicitação #${s.id}?</h3><p class="s">Falta pouco para sua coleta! Deseja cancelar?</p><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn bad" data-act="confirmar-cancelamento" data-id="${s.id}">Cancelar</button></div>`);break;}
     case "confirmar-cancelamento": {const s=solicitacao(id);s.status="cancelada";if(s.rota){const r=rota(s.rota);r.solicitacoes=r.solicitacoes.filter(x=>x!==s.id);}s.rota=null;registrarHistorico(s,"Cancelada pelo cliente");registrarAuditoria(`Solicitação #${s.id} cancelada`);fecharModal();toast("Solicitação cancelada.");rerender();break;}
     case "criar-rota": {
       const card=b.closest(".panel"), ids=$$(".rota-sel:checked",card).map(x=>Number(x.value)); if(!ids.length)return toast("Selecione ao menos uma solicitação.");
       const lista=ids.map(solicitacao), total=lista.reduce((a,s)=>a+somaEstimada(s),0), emp=empresa("e1"), veiculo=DB.veiculos.find(v=>v.id===$(".rota-veiculo",card).value);
       if(total>veiculo.capacidade)return toast("O peso estimado excede a capacidade do veículo.");
       const excepcional=total<emp.quantidadeMinima, r={id:++DB.sequenciaRota,empresa:"e1",data:b.dataset.data,janela:b.dataset.janela,veiculo:veiculo.id,coletor:$(".rota-coletor",card).value,status:"programada",liberacaoExcepcional:excepcional,solicitacoes:ids};
-      DB.rotas.push(r);lista.forEach(s=>{s.rota=r.id;s.status="em_rota";registrarHistorico(s,`Incluída na rota R-${r.id}`);});registrarAuditoria(`Rota R-${r.id} criada${excepcional?' abaixo do mínimo':''}`);toast(`Rota R-${r.id} criada.`);rerender();break;
+      DB.rotas.push(r);lista.forEach(s=>{s.rota=r.id;s.status="aprovada";registrarHistorico(s,`Incluída na rota R-${r.id}; aguardando início`);});registrarAuditoria(`Rota R-${r.id} criada${excepcional?' abaixo do mínimo':''}`);toast(`Rota R-${r.id} criada.`);rerender();break;
     }
-    case "iniciar-rota": {const r=rota(id);r.status="em andamento";registrarAuditoria(`Rota R-${r.id} iniciada`);toast("Rota iniciada.");rerender();break;}
+    case "iniciar-rota": {const r=rota(id);r.status="em andamento";r.solicitacoes.map(solicitacao).filter(s=>s.status==="aprovada").forEach(s=>s.status="em_rota");registrarAuditoria(`Rota R-${r.id} iniciada`);toast("Rota iniciada.");fecharModal();rerender();break;}
 
       case "marcar-pendente": modal(`<h3>Marcar recebimento como pendente</h3><div class="f"><label>Motivo</label><input id="motivo-pendente"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="confirmar-pendente" data-id="${id}">Registrar</button></div>`);break;
       case "confirmar-pendente": {const motivo=$("#motivo-pendente").value.trim();if(!motivo)return toast("Informe o motivo.");const s=solicitacao(id);s.status="pendente_rota";s.motivoPendente=motivo;registrarHistorico(s,`Parada pendente: ${motivo}`);notificar("representante",`Parada da solicitação #${s.id} ficou pendente.`);fecharModal();rerender();break;}
       case "concluir-rota": {const r=rota(id),abertas=r.solicitacoes.map(solicitacao).filter(s=>s.status==="em_rota");if(abertas.length)return toast("Finalize ou marque como pendentes todas as paradas.");r.status="concluída";registrarAuditoria(`Rota R-${r.id} concluída`);toast("Rota concluída.");rerender();break;}
 
-      case "receber": {const s=solicitacao(id);if(!s.recebido){s.recebido=true;registrarHistorico(s,"Recebimento confirmado pelo coletor");toast("Recebimento confirmado. O cliente não pode mais cancelar.");rerender();}else abrirPesagem(s);break;}
-    case "salvar-pesagem": {const s=solicitacao(id);s.itens=s.itens.map((i,n)=>{const real=Math.max(0,Number($(`#real-${n}`).value||0)),aceito=Math.max(0,Math.min(real,Number($(`#aceito-${n}`).value||0)));return {...i,real,aceito};});s.observacaoPesagem=$("#motivo-recusa").value.trim();s.status="aguardando_confirmacao";registrarHistorico(s,"Pesagem registrada; aguardando confirmação do cliente");registrarAuditoria(`Pesagem da solicitação #${s.id} registrada`);fecharModal();toast("Pesagem enviada ao cliente.");rerender();break;}
+      case "receber": {const s=solicitacao(id),r=rota(s.rota);if(!r||r.status!=="em andamento")return toast("Inicie a rota antes de confirmar recebimento ou registrar pesagem.");if(!s.recebido){s.recebido=true;registrarHistorico(s,"Recebimento confirmado pelo coletor");toast("Recebimento confirmado. O cliente não pode mais cancelar.");modalRotaColetor(r);}else abrirPesagem(s);break;}
+    case "salvar-pesagem": {const s=solicitacao(id),r=rota(s.rota);if(!r||r.status!=="em andamento")return toast("Inicie a rota antes de registrar a pesagem.");s.itens=s.itens.map((i,n)=>{const real=Math.max(0,Number($(`#real-${n}`).value||0)),aceito=Math.max(0,Math.min(real,Number($(`#aceito-${n}`).value||0)));return {...i,real,aceito};});s.observacaoPesagem=$("#motivo-recusa").value.trim();s.status="aguardando_confirmacao";registrarHistorico(s,"Pesagem registrada; aguardando confirmação do cliente");registrarAuditoria(`Pesagem da solicitação #${s.id} registrada`);fecharModal();toast("Pesagem enviada ao cliente.");rerender();break;}
     case "ver-pesagem": abrirResultado(solicitacao(id)); break;
     case "confirmar-pesagem": {
       const s=solicitacao(id),emp=empresa(s.empresa),valor=valorSolicitacao(s);if(emp.saldoReservado<valor)return toast("A empresa não possui saldo reservado suficiente.");
@@ -455,8 +532,8 @@ document.addEventListener("click", e=>{
     case "salvar-pix": {const chave=$("#valor-pix").value.trim();if(!chave)return toast("Informe a chave Pix.");DB.pix={tipo:$("#tipo-pix").value,chave};fecharModal();toast("Chave Pix cadastrada.");rerender();break;}
     case "sacar": modal(`<h3>Solicitar saque</h3><div class="f"><label for="valor-saque">Valor disponível: ${brl(saldoCliente())}</label><input id="valor-saque" type="number" min="0.01" max="${saldoCliente()}" step="0.01" value="${saldoCliente().toFixed(2)}"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="confirmar-saque">Solicitar</button></div>`);break;
     case "confirmar-saque": {const valor=Number($("#valor-saque").value);if(!(valor>0)||valor>saldoCliente())return toast("Valor inválido ou superior ao saldo.");DB.movimentacoesCliente.push({data:hoje(),descricao:"Reserva para saque Pix",valor:-valor,status:"disponível"});DB.saques.unshift({id:`sq${Date.now()}`,data:hoje(),valor,status:"solicitado",chave:DB.pix.chave});registrarAuditoria(`Saque de ${brl(valor)} solicitado`);fecharModal();toast("Saque solicitado.");rerender();break;}
-    case "avaliar": {const s=solicitacao(id);modal(`<h3>Avaliar coleta #${s.id}</h3><div class="f"><label for="nota">Nota</label><select id="nota">${[1,2,3,4,5].map(n=>`<option>${n}</option>`).join("")}</select></div><div class="f"><label for="comentario">Comentário opcional</label><input id="comentario"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="salvar-avaliacao" data-id="${s.id}">Enviar</button></div>`);break;}
-    case "salvar-avaliacao": {const s=solicitacao(id);if(s.avaliacao)return toast("Esta coleta já foi avaliada.");s.avaliacao=Number($("#nota").value);s.comentario=$("#comentario").value.trim();fecharModal();toast("Avaliação registrada.");rerender();break;}
+    case "avaliar": {const s=solicitacao(id);if(!s||s.cliente!==CLIENTE.nome||s.status!=="concluida")return toast("Somente coletas concluídas podem ser avaliadas.");if(s.avaliacao)return toast("Esta coleta já foi avaliada.");modal(`<h3>Avaliar coleta #${s.id}</h3><p class="s">A nota deve estar entre 1 e 5. O comentário é opcional.</p><div class="f"><label for="nota">Nota</label><select id="nota">${[1,2,3,4,5].map(n=>`<option value="${n}">${n}</option>`).join("")}</select></div><div class="f"><label for="comentario">Comentário opcional</label><textarea id="comentario" rows="3" maxlength="500" placeholder="Conte como foi a coleta"></textarea></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="salvar-avaliacao" data-id="${s.id}">Enviar avaliação</button></div>`);break;}
+    case "salvar-avaliacao": {const s=solicitacao(id),nota=Number($("#nota")?.value),comentario=$("#comentario")?.value.trim()||"";if(!s||s.cliente!==CLIENTE.nome||s.status!=="concluida")return toast("Somente coletas concluídas podem ser avaliadas.");if(s.avaliacao)return toast("Esta coleta já foi avaliada.");if(!Number.isInteger(nota)||nota<1||nota>5)return toast("Selecione uma nota de 1 a 5.");s.avaliacao=nota;s.comentario=comentario;s.avaliadaEm=hoje();DB.avaliacoes.push({empresa:s.empresa,cliente:s.cliente,solicitacao:s.id,nota,comentario,data:hoje()});registrarHistorico(s,`Coleta avaliada com nota ${nota}/5`);registrarAuditoria(`Solicitação #${s.id} avaliada com nota ${nota}/5`);notificar("representante",`A coleta #${s.id} recebeu avaliação ${nota}/5.`);fecharModal();toast("Avaliação registrada.");rerender();break;}
     case "salvar-precos": {const emp=empresa("e1"),novos={};for(const m of Object.keys(MATERIAL)){if($(`#mat-${m}`).checked){const p=Number($(`#preco-${m}`).value);if(!(p>0))return toast(`Informe o preço de ${MATERIAL[m].nome}.`);novos[m]=p;}}if(!Object.keys(novos).length)return toast("Selecione ao menos um material.");emp.precos=novos; emp.condicoesPorMaterial ||= {}; for(const m of Object.keys(novos)){emp.condicoesPorMaterial[m]={limpeza:$("#limpeza-"+m)?.value.trim()||"",separacao:$("#separacao-"+m)?.value.trim()||"",acondicionamento:$("#acond-"+m)?.value.trim()||"",qualidade:$("#qualidade-"+m)?.value.trim()||""};} emp.condicoes=Object.entries(emp.condicoesPorMaterial).map(([m,c])=>`${MATERIAL[m]?.nome}: ${c.limpeza}; ${c.separacao}; ${c.acondicionamento}; ${c.qualidade}`).join(" | ");registrarAuditoria("Tabela de preços e condições atualizada");toast("Tabela atualizada. Solicitações aprovadas mantêm os preços anteriores.");rerender();break;}
     case "reservar-saldo": modal(`<h3>Reservar saldo</h3><div class="f"><label for="novo-saldo">Valor</label><input id="novo-saldo" type="number" min="1" value="1000"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="confirmar-saldo">Registrar</button></div>`);break;
     case "confirmar-saldo": {const v=Number($("#novo-saldo").value);if(!(v>0))return toast("Informe um valor válido.");empresa("e1").saldoReservado+=v;registrarAuditoria(`Saldo reservado acrescido em ${brl(v)}`);fecharModal();toast("Saldo reservado atualizado.");rerender();break;}
@@ -474,7 +551,7 @@ document.addEventListener("click", e=>{
       case "alternar-admin": {const u=DB.usuarios.find(x=>x.id===id);u.administrador=!u.administrador;u.perfil=u.administrador?"Administrador":"Suporte";registrarAuditoria(`${u.administrador?'Perfil administrativo atribuído a':'Perfil administrativo removido de'} ${u.nome}`);rerender();break;}
       case "suspender-empresa": {const epr=empresa(id);epr.status="suspensa";registrarAuditoria(`Empresa ${epr.nome} suspensa`);rerender();break;}
       case "reativar-empresa": {const epr=empresa(id);epr.status="ativa";epr.verificada=true;registrarAuditoria(`Empresa ${epr.nome} reativada`);rerender();break;}
-      case "liberar-parada": {const s=solicitacao(id);s.status="em_rota";s.motivoPendente="";registrarHistorico(s,"Parada pendente liberada pelo representante");notificar("coletor",`Parada da solicitação #${s.id} liberada.`);rerender();break;}
+      case "liberar-parada": {const s=solicitacao(id);s.status="em_rota";s.motivoPendente="";registrarHistorico(s,"Parada pendente liberada pelo representante");notificar("coletor",`Parada da solicitação #${s.id} liberada.`);if(s.cliente===CLIENTE.nome)notificar("cliente",`Sua coleta #${s.id} foi liberada e está aguardando atendimento na rota.`);rerender();break;}
       case "nova-categoria": modal(`<h3>Nova categoria</h3><div class="f"><label>Nome</label><input id="cat-nome"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="salvar-categoria">Salvar</button></div>`);break;
       case "salvar-categoria": {const nome=$("#cat-nome").value.trim();if(!nome)return toast("Informe o nome.");const key=`cat_${Date.now()}`;MATERIAL[key]={nome,cor:"--papel"};registrarAuditoria(`Categoria ${nome} cadastrada`);fecharModal();rerender();break;}
       case "editar-categoria": {const m=MATERIAL[id];modal(`<h3>Editar categoria</h3><div class="f"><label>Nome</label><input id="cat-nome" value="${esc(m.nome)}"></div><div class="acts"><button class="btn sec" data-act="fechar">Voltar</button><button class="btn" data-act="confirmar-edicao-categoria" data-id="${id}">Salvar</button></div>`);break;}
